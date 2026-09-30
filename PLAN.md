@@ -65,8 +65,10 @@
 - `npx vitest run` ✅ 74/74 (62 existing + 12 new parse tests)
 - `npm run build` ✅ 17 routes
 
-## LATER (subscriptions ke saath)
-- Real `BillingProvider` (Stripe/Paddle), pricing/limits enforcement (§53–54), production deploy (§51), a11y audit (§70).
+## Billing — Paddle integration (2026-09-30)
+- Code: Paddle provider, checkout, portal, signed replay-safe webhooks, billing UI, Standard supplier cap and write gates implemented. `npm run lint`, `npm run typecheck`, `npm test` (83/83) and `npm run build` pass; local production smoke checked `/pay` 200, disabled webhook 404, protected billing 307. Sandbox/live credentials, Paddle account/website approval and actual payment test are pending; see `SUBSCRIPTIONS_PLAN.md`.
+- Database: `supabase/migrations/20260930_paddle_billing.sql` prepared but **not applied remotely** (Supabase MCP access returns unauthorized). Apply before switching `BILLING_PROVIDER` to `paddle`.
+- Other follow-ups: production deploy validation and accessibility audit (§70).
 
 ## Log
 - 2026-09-24: plan created; fixes start with Fix 1.
