@@ -85,4 +85,8 @@ Every transaction appears in exactly one match (invariant enforced by `assertCov
 
 ## Testing
 
-62 unit tests cover reference normalization, amount parsing, date parsing, all six matching passes, credits, currency mismatch, CSV injection, and the PRD §75 fixture.
+Unit tests cover reference normalization, amount/date/file parsing, all six matching passes, credits, currency mismatch, CSV injection, the PRD §75 fixture, and billing access/Paddle signature handling.
+
+## Subscriptions
+
+`BILLING_PROVIDER=manual` is the default. Paddle checkout, a billing portal, and signed webhooks are implemented, but require the database migration and separate Paddle sandbox/live keys before activation. See [`SUBSCRIPTIONS_PLAN.md`](SUBSCRIPTIONS_PLAN.md) for the exact sequence. Never enable `paddle` before running `supabase/migrations/20260930_paddle_billing.sql` on the existing database.

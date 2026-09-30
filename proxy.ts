@@ -9,6 +9,11 @@ const PUBLIC_PATHS = ["/login", "/signup", "/auth", "/onboarding"];
  * real authorization happens in the Data Access Layer and RLS.
  */
 export async function proxy(request: NextRequest) {
+  // Paddle calls this endpoint without a Supabase session. The route itself
+  // verifies the raw webhook signature before touching any database rows.
+  if (request.nextUrl.pathname === "/api/billing/webhook") {
+    return NextResponse.next({ request });
+  }
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -37,7 +42,7 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const isPublic = pathname === "/pay" || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   if (!user && !isPublic && pathname !== "/") {
     const url = request.nextUrl.clone();

@@ -7,6 +7,7 @@ import { requireOrg } from "@/lib/dal";
 import { createReconciliationSchema, datasetPayloadSchema } from "@/lib/validation";
 import { recordAudit } from "@/lib/audit";
 import { checkRateLimit, rateLimitError } from "@/lib/rate-limit";
+import { billingWriteAccess } from "@/lib/billing/access";
 import {
   saveDataset,
   runReconciliation,
@@ -27,6 +28,8 @@ export async function createReconciliationAction(
   formData: FormData,
 ): Promise<CreateReconState> {
   const ctx = await requireOrg();
+  const access = await billingWriteAccess(ctx.organization.id);
+  if (!access.allowed) return { error: access.message };
 
   const parsed = createReconciliationSchema.safeParse({
     supplier_id: formData.get("supplier_id"),
@@ -93,6 +96,8 @@ export async function saveDatasetAction(
   json: string,
 ): Promise<ActionResult<{ datasetId: string; rowCount: number }>> {
   const ctx = await requireOrg();
+  const access = await billingWriteAccess(ctx.organization.id);
+  if (!access.allowed) return { ok: false, error: access.message };
 
   let payloadRaw: unknown;
   try {
@@ -131,6 +136,8 @@ export async function runReconciliationAction(
   reconciliationId: string,
 ): Promise<ActionResult<{ matchCount: number }>> {
   const ctx = await requireOrg();
+  const access = await billingWriteAccess(ctx.organization.id);
+  if (!access.allowed) return { ok: false, error: access.message };
   // Matching runs are the most expensive op — bound per organization.
   const limited = checkRateLimit(`run:${ctx.organization.id}`, {
     limit: 30,

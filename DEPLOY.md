@@ -1,5 +1,7 @@
 # Deploy Guide — Supplier Statement Reconciliation SaaS (Vercel)
 
+> **Netlify users:** set base directory to the repository root (blank), build command `npm run build`, publish directory `.next`. Netlify's Next.js runtime handles SSR, Server Actions and `/api/billing/webhook`. For Paddle checkout, follow `SUBSCRIPTIONS_PLAN.md` and set `SECRETS_SCAN_OMIT_KEYS=NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_PADDLE_CLIENT_TOKEN` because both values must appear in the public bundle. Keep private API/webhook/service-role keys scanned. Do not turn off secrets scanning globally.
+
 > Pre-deploy verified 2026-09-24: `lint` ✅ · `typecheck` ✅ · `tests` 74/74 ✅ · `next build` ✅ (17 routes) · prod smoke 16/16 ✅ · Supabase live 13/13 tables, anon sees 0 rows, auth healthy ✅
 > No git repo in folder — Option A needs none. Billing = `manual` (pilot); Paddle = SUBSCRIPTIONS_PLAN.md Phase 1+.
 

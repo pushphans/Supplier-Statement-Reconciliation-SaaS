@@ -24,7 +24,8 @@ export type AuditEventType =
   | "user_removed"
   | "organization_updated"
   | "organization_deleted"
-  | "profile_updated";
+  | "profile_updated"
+  | "subscription_updated";
 
 export async function recordAudit(
   supabase: SupabaseClient,

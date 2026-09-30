@@ -1,115 +1,74 @@
 import { requireOrg } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { getBillingProvider } from "@/lib/billing/provider";
-import {
-  Alert,
-  Badge,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui";
+import { BillingButtons } from "@/components/billing/billing-buttons";
+import { Alert, Badge, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 
 export const metadata = { title: "Billing" };
 
-export default async function BillingPage() {
+export default async function BillingPage({ searchParams }: PageProps<"/settings/billing">) {
   const ctx = await requireOrg();
+  const sp = await searchParams;
   const supabase = await createClient();
   const provider = getBillingProvider();
-
-  const { data: sub } = await supabase
-    .from("subscriptions")
-    .select("status, plan_name, provider, trial_ends_at, current_period_end")
-    .eq("organization_id", ctx.organization.id)
-    .maybeSingle();
+  const { data: sub } = await supabase.from("subscriptions")
+    .select("status, plan_name, provider, trial_ends_at, current_period_end, provider_subscription_id, cancel_at_period_end, past_due_since")
+    .eq("organization_id", ctx.organization.id).maybeSingle();
 
   const trialEnd = sub?.trial_ends_at ? new Date(sub.trial_ends_at) : null;
-  const trialEndMs = trialEnd ? trialEnd.getTime() : null;
+  const activeUntil = sub?.current_period_end ? new Date(sub.current_period_end) : null;
   // eslint-disable-next-line react-hooks/purity -- server component; clock read is intentional per-request
-  const nowMs = Date.now();
-  const trialExpired = trialEndMs !== null ? trialEndMs < nowMs : false;
+  const trialExpired = Boolean(trialEnd && trialEnd.getTime() < Date.now());
+  const isManual = provider.name === "manual";
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="max-w-3xl space-y-5">
+      <h1 className="text-lg font-semibold text-zinc-900">Billing</h1>
+      {sp.checkout === "returned" && (
+        <Alert tone="info">Paddle is confirming your payment. This page updates when the payment webhook arrives; refresh shortly.</Alert>
+      )}
       <Card>
-        <CardHeader>
-          <CardTitle>Current plan</CardTitle>
-          <CardDescription>
-            Private pilot runs on manual billing — no payment integration required (PRD §53).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+        <CardHeader><CardTitle>Current plan</CardTitle></CardHeader>
+        <CardContent className="space-y-4 text-sm text-zinc-700">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-zinc-900">{sub?.plan_name ?? "Trial"}</p>
-              <p className="text-xs text-zinc-500">
-                Provider: {sub?.provider ?? provider.name}
-              </p>
+              <p className="font-medium text-zinc-900">{sub?.plan_name ?? "Trial"}</p>
+              <p className="text-xs text-zinc-500">Provider: {sub?.provider ?? provider.name}</p>
             </div>
-            <Badge
-              className={
-                sub?.status === "founding" || sub?.status === "active"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : sub?.status === "canceled"
-                    ? "border-red-200 bg-red-50 text-red-700"
-                    : "border-amber-200 bg-amber-50 text-amber-700"
-              }
-            >
-              {sub?.status ?? "trialing"}
-            </Badge>
+            <Badge className="border-zinc-200 bg-zinc-100 text-zinc-700">{sub?.status ?? "trialing"}</Badge>
           </div>
-
           {sub?.status === "trialing" && trialEnd && (
             <Alert tone={trialExpired ? "warning" : "info"}>
               Trial {trialExpired ? "ended" : "ends"} {trialEnd.toLocaleDateString()}.
-              {trialExpired
-                ? " Contact us to assign the Founding plan — billing is handled manually during the pilot."
-                : " Founding pricing will be applied manually at conversion."}
+              {isManual ? " Contact us for a founding plan." : " Subscribe to keep creating reconciliations."}
             </Alert>
           )}
-
-          <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
-            <p className="font-medium text-zinc-800">Foundation pilot pricing</p>
-            <p className="mt-1">
-              Flat pilot rate while in private beta. Upgrades and portal actions are recorded
-              against the manual provider until a payment processor is connected.
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-            <a
-              href="/settings/billing?pending=manual"
-              className="inline-flex h-9 items-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
-            >
-              Request plan change
-            </a>
-          </div>
+          {sub?.status === "past_due" && (
+            <Alert tone="warning">Payment needs attention. Use Manage subscription to update your payment method; a 7-day grace period applies.</Alert>
+          )}
+          {activeUntil && <p>Current paid period ends {activeUntil.toLocaleDateString()}.</p>}
+          {sub?.cancel_at_period_end && <p>Cancellation is scheduled for the end of your paid period.</p>}
+          {isManual ? (
+            <p>Private pilot billing is handled manually; no online payment is required.</p>
+          ) : sub?.status === "founding" ? (
+            <p>Your founding plan is managed directly by the team.</p>
+          ) : ctx.role === "owner" ? (
+            <BillingButtons hasSubscription={Boolean(sub?.provider_subscription_id && sub.status !== "canceled")} />
+          ) : (
+            <p>Ask your organization owner to manage billing.</p>
+          )}
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Billing architecture</CardTitle>
-          <CardDescription>Provider-agnostic interface for future processors.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2 text-sm text-zinc-700">
-            <li>
-              <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">BillingProvider</code>{" "}
-              interface with checkout, portal, and webhook verification.
-            </li>
-            <li>
-              <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs">
-                ManualBillingProvider
-              </code>{" "}
-              is the default (<code className="text-xs">BILLING_PROVIDER=manual</code>).
-            </li>
-            <li>Subscription state lives in the <code className="text-xs">subscriptions</code> table with RLS owner policies.</li>
-            <li>Webhooks verify signatures before mutating subscription state.</li>
-          </ul>
-        </CardContent>
-      </Card>
+      {provider.name === "paddle" && (
+        <Card>
+          <CardHeader><CardTitle>Standard — $99/month</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm text-zinc-700">
+            <p>Up to 25 suppliers, reconciliation history and CSV exports, with multiple team members.</p>
+            <p>India checkout uses an INR price override and supports UPI Autopay when enabled in Paddle. Paddle handles payments, invoices and sales tax as Merchant of Record.</p>
+            <p className="text-xs text-zinc-500">Payment is confirmed by a signed webhook, not merely by returning from checkout. Existing history and exports remain available if a plan expires.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

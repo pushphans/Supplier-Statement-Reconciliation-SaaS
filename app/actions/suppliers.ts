@@ -6,6 +6,7 @@ import { requireOrg, requireOwner } from "@/lib/dal";
 import { supplierSchema, organizationSchema } from "@/lib/validation";
 import { recordAudit } from "@/lib/audit";
 import type { ActionResult } from "@/lib/server/ops";
+import { billingWriteAccess } from "@/lib/billing/access";
 
 export type SupplierFormState = {
   error?: string;
@@ -17,6 +18,8 @@ export async function createSupplierAction(
   formData: FormData,
 ): Promise<SupplierFormState> {
   const ctx = await requireOrg();
+  const access = await billingWriteAccess(ctx.organization.id);
+  if (!access.allowed) return { error: access.message };
   const parsed = supplierSchema.safeParse({
     name: formData.get("name"),
     supplier_code: ((formData.get("supplier_code") as string) ?? "").trim(),
@@ -33,6 +36,15 @@ export async function createSupplierAction(
   }
 
   const supabase = await createClient();
+  if (access.supplierLimit !== null) {
+    const { count, error: countError } = await supabase.from("suppliers")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", ctx.organization.id);
+    if (countError) return { error: "Could not check your supplier allowance." };
+    if ((count ?? 0) >= access.supplierLimit) {
+      return { error: `Your plan supports up to ${access.supplierLimit} suppliers.` };
+    }
+  }
   const { error } = await supabase.from("suppliers").insert({
     organization_id: ctx.organization.id,
     name: parsed.data.name,
